@@ -48,7 +48,9 @@ public class main {
                             validChoice = true;
                             break;
                         case 3:
-                            // implament MLFQ
+                            System.out.print("Enter quantum: ");
+                            int quantumMLFQ = console.nextInt();
+                            runMLFQ(null, quantumMLFQ);
                             validChoice = true;
                             break;
                         case 4:
@@ -100,7 +102,7 @@ public class main {
             return tasks;
         }
         try (FileReader fr = new FileReader(filePath);
-             Scanner sc = new Scanner(fr)) {
+                Scanner sc = new Scanner(fr)) {
             while (sc.hasNextLine()) {
                 String line = sc.nextLine();
                 String[] parts = line.split(",");
@@ -121,70 +123,111 @@ public class main {
         return tasks;
     }
 
-    public static void runSFC() {
+    public static List<Task> runSFC() {
         JFileChooser fileChooser = new JFileChooser();
         int result = fileChooser.showOpenDialog(null);
         if (result == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
             List<Task> tasks = readCSVTasks(selectedFile.getAbsolutePath());
 
+            System.out.println("Selected file: " + selectedFile.getAbsolutePath());
+            System.out.println("which scheduling algorithm would you like to run on the new file?");
+            int choice = new Scanner(System.in).nextInt();
             if (tasks.isEmpty()) {
                 System.out.println("No tasks found in the selected file.");
-                return;
+                return tasks;
             }
         } else {
             System.out.println("No file selected.");
         }
+        return new ArrayList<>();
     }
 
     public static void runMLFQ(List<Queue<Task>> queues, int quantum) {
+        int level = 0;
         Queue<Task> young = queues.get(0);
         Queue<Task> old = queues.get(1);
         Queue<Task> oldest = queues.get(2);
 
-        boolean isyoung = true;
-        boolean isold = false;
-        while (!young.isEmpty() || !old.isEmpty() || !oldest.isEmpty()) {
-            if (isyoung && !young.isEmpty()) {
-                Task current = young.poll();
-
-                int slice = Math.min(current.remainingBurst, quantum);
-                current.remainingBurst -= slice;
-                System.out.println("" + current.id + " ran in young queue for " + slice + " units, remaining "
-                        + current.remainingBurst);
-                if (current.remainingBurst > 0) {
-                    isyoung = false;
-                    isold = true;
-                    old.add(current);
-                } else {
-                    System.out.println(current.id + " completed.");
-                }
-            } else if (isold && !old.isEmpty()) {
-                Task current = old.poll();
-                int slice = Math.min(current.remainingBurst, quantum * 2);
-                current.remainingBurst -= slice;
-                System.out.println("" + current.id + "ran in old queue for "+ slice + " units, remaining"+ current.remainingBurst);
-                if (current.remainingBurst > 0){
-                    isold = false;
-                    oldest.add(current);
-                }
-            }    
-                
-                else if (!oldest.isEmpty()){
-                    Task current = oldest.poll();
-                    int slice = Math.min(current.remainingBurst, quantum * 4);
-                    current.remainingBurst -= slice;
-                    System.out.println(current.id + " ran in oldest queue for " + slice + " units, remaining " + current.remainingBurst);
-                    if (current.remainingBurst > 0){
-                        oldest.add (current);
-                    } else {
-                        System.out.println(current.id + " completed.");
-                    }
-                }
+        if (quantum <= 0) {
+            System.out.println("Time quantum must be greater than 0.");
+            return;
         }
-
+        
+        while (!young.isEmpty() || !old.isEmpty() || !oldest.isEmpty()) {
+            Queue<Task> current = (level == 0) ? young : (level == 1) ? old : oldest;
+            int timeSlice = quantum * (level + 1);
+            
+            if (!current.isEmpty()) {
+                Task task = current.poll();
+                task.remainingBurst -= Math.min(task.remainingBurst, timeSlice);
+                System.out.println(task.id + " ran in level " + level + " for " + timeSlice + " units, remaining " + task.remainingBurst);
+                
+                if (task.remainingBurst > 0 && level < 2) {
+                    level = (level + 1) % 3;
+                    if (level == 1) old.add(task);
+                    else if (level == 2) oldest.add(task);
+                }
+            } else {
+                level = (level + 1) % 3;
+                
+                
+            }
+        }
     }
 
+    /*
+     * 
+     * 
+     * Queue<Task> young = queues.get(0);
+     * Queue<Task> old = queues.get(1);
+     * Queue<Task> oldest = queues.get(2);
+     * boolean isyoung = true;
+     * boolean isold = false;
+     * while (!young.isEmpty() || !old.isEmpty() || !oldest.isEmpty()) {
+     * if (isyoung && !young.isEmpty()) {
+     * Task current = young.poll();
+     * 
+     * int slice = Math.min(current.remainingBurst, quantum);
+     * current.remainingBurst -= slice;
+     * System.out.println("" + current.id + " ran in young queue for " + slice +
+     * " units, remaining "
+     * + current.remainingBurst);
+     * if (current.remainingBurst > 0) {
+     * isyoung = false;
+     * isold = true;
+     * old.add(current);
+     * } else {
+     * System.out.println(current.id + " completed.");
+     * }
+     * } else if (isold && !old.isEmpty()) {
+     * Task current = old.poll();
+     * int slice = Math.min(current.remainingBurst, quantum * 2);
+     * current.remainingBurst -= slice;
+     * System.out.println("" + current.id + "ran in old queue for "+ slice +
+     * " units, remaining"+ current.remainingBurst);
+     * if (current.remainingBurst > 0){
+     * isold = false;
+     * oldest.add(current);
+     * }
+     * }
+     * 
+     * else if (!oldest.isEmpty()){
+     * Task current = oldest.poll();
+     * int slice = Math.min(current.remainingBurst, quantum * 4);
+     * current.remainingBurst -= slice;
+     * System.out.println(current.id + " ran in oldest queue for " + slice +
+     * " units, remaining " + current.remainingBurst);
+     * if (current.remainingBurst > 0){
+     * oldest.add (current);
+     * } else {
+     * System.out.println(current.id + " completed.");
+     * }
+     * }
+     * }
+     * 
+     * }
+     */
     public static void runPriorityQueueTask(List<Task> tasks) {
         PriorityQueue<Task> pq = new PriorityQueue<>(tasks);
         if (pq.isEmpty()) {
