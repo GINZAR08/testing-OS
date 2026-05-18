@@ -153,81 +153,28 @@ public class main {
             System.out.println("Time quantum must be greater than 0.");
             return;
         }
-        
-        while (!young.isEmpty() || !old.isEmpty() || !oldest.isEmpty()) {
-            Queue<Task> current = (level == 0) ? young : (level == 1) ? old : oldest;
+
+
+        while (!young.isEmpty() || !old.isEmpty()) {
+            Queue<Task> current = (level == 0) ? young : old;
             int timeSlice = quantum * (level + 1);
-            
+
             if (!current.isEmpty()) {
                 Task task = current.poll();
                 task.remainingBurst -= Math.min(task.remainingBurst, timeSlice);
                 System.out.println(task.id + " ran in level " + level + " for " + timeSlice + " units, remaining " + task.remainingBurst);
-                
-                if (task.remainingBurst > 0 && level < 2) {
-                    level = (level + 1) % 3;
+
+                if (task.remainingBurst > 0) {
+                    level = (level + 1) % 2;
                     if (level == 1) old.add(task);
-                    else if (level == 2) oldest.add(task);
+                    // level 0 (young) is only for new arrivals, so tasks demote to old
                 }
             } else {
-                level = (level + 1) % 3;
-                
-                
+                level = (level + 1) % 2;
             }
         }
     }
 
-    /*
-     * 
-     * 
-     * Queue<Task> young = queues.get(0);
-     * Queue<Task> old = queues.get(1);
-     * Queue<Task> oldest = queues.get(2);
-     * boolean isyoung = true;
-     * boolean isold = false;
-     * while (!young.isEmpty() || !old.isEmpty() || !oldest.isEmpty()) {
-     * if (isyoung && !young.isEmpty()) {
-     * Task current = young.poll();
-     * 
-     * int slice = Math.min(current.remainingBurst, quantum);
-     * current.remainingBurst -= slice;
-     * System.out.println("" + current.id + " ran in young queue for " + slice +
-     * " units, remaining "
-     * + current.remainingBurst);
-     * if (current.remainingBurst > 0) {
-     * isyoung = false;
-     * isold = true;
-     * old.add(current);
-     * } else {
-     * System.out.println(current.id + " completed.");
-     * }
-     * } else if (isold && !old.isEmpty()) {
-     * Task current = old.poll();
-     * int slice = Math.min(current.remainingBurst, quantum * 2);
-     * current.remainingBurst -= slice;
-     * System.out.println("" + current.id + "ran in old queue for "+ slice +
-     * " units, remaining"+ current.remainingBurst);
-     * if (current.remainingBurst > 0){
-     * isold = false;
-     * oldest.add(current);
-     * }
-     * }
-     * 
-     * else if (!oldest.isEmpty()){
-     * Task current = oldest.poll();
-     * int slice = Math.min(current.remainingBurst, quantum * 4);
-     * current.remainingBurst -= slice;
-     * System.out.println(current.id + " ran in oldest queue for " + slice +
-     * " units, remaining " + current.remainingBurst);
-     * if (current.remainingBurst > 0){
-     * oldest.add (current);
-     * } else {
-     * System.out.println(current.id + " completed.");
-     * }
-     * }
-     * }
-     * 
-     * }
-     */
     public static void runPriorityQueueTask(List<Task> tasks) {
         PriorityQueue<Task> pq = new PriorityQueue<>(tasks);
         if (pq.isEmpty()) {
