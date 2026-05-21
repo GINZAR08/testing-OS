@@ -17,9 +17,9 @@ public class main {
         List<Task> tasks = readCSVTasks(FilePath);
 
         try (Scanner console = new Scanner(System.in)) {
-            boolean validChoice = false;
 
-            while (!validChoice) {
+
+            while (true) {
                 try {
                     System.out.println("Choose a scheduling option:");
                     System.out.println("1. Priority Queue");
@@ -39,23 +39,25 @@ public class main {
                     switch (choice) {
                         case 1:
                             runPriorityQueueTask(tasks);
-                            validChoice = true;
+
                             break;
                         case 2:
                             System.out.print("Enter quantum: ");
                             int quantumRR = console.nextInt();
                             runRoundRobin(tasks, quantumRR);
-                            validChoice = true;
+
                             break;
                         case 3:
                             System.out.print("Enter quantum: ");
                             int quantumMLFQ = console.nextInt();
-                            runMLFQ(null, quantumMLFQ);
-                            validChoice = true;
-                            break;
+                            List<Queue<Task>> queues = new ArrayList<>();
+                            Queue<Task> young = new ArrayDeque<>(tasks);
+                            Queue<Task> old = new ArrayDeque<>();
+                            queues.add(young);
+                            queues.add(old);
+                            runMLFQ(queues, quantumMLFQ);
                         case 4:
                             runSFC();
-                            validChoice = true;
                             break;
                         case 5:
                             System.out.println("Exiting...");
@@ -147,7 +149,7 @@ public class main {
         int level = 0;
         Queue<Task> young = queues.get(0);
         Queue<Task> old = queues.get(1);
-        Queue<Task> oldest = queues.get(2);
+
 
         if (quantum <= 0) {
             System.out.println("Time quantum must be greater than 0.");
@@ -167,7 +169,7 @@ public class main {
                 if (task.remainingBurst > 0) {
                     level = (level + 1) % 2;
                     if (level == 1) old.add(task);
-                    // level 0 (young) is only for new arrivals, so tasks demote to old
+
                 }
             } else {
                 level = (level + 1) % 2;
