@@ -4,11 +4,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.InputMismatchException;
 import java.util.List;
-import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Scanner;
-import java.io.File;
-import javax.swing.JFileChooser;
 
 public class main {
     public static void main(String[] args) {
@@ -38,13 +35,13 @@ public class main {
 
                     switch (choice) {
                         case 1:
-                            runPriorityQueueTask(tasks);
+                            runPriorityQueue.run(tasks);
 
                             break;
                         case 2:
                             System.out.print("Enter quantum: ");
                             int quantumRR = console.nextInt();
-                            runRoundRobin(tasks, quantumRR);
+                            runRoundRobin.run(tasks, quantumRR);
 
                             break;
                         case 3:
@@ -55,10 +52,12 @@ public class main {
                             Queue<Task> old = new ArrayDeque<>();
                             queues.add(young);
                             queues.add(old);
-                            runMLFQ(queues, quantumMLFQ);
+                            runMLFQ.run(tasks, quantumMLFQ);
                         case 4:
-                            runSFC();
-                            break;
+                            List<Task> newTasks = runSFC.run();
+                            if (!newTasks.isEmpty()) {
+                                tasks = newTasks;
+                            }
                         case 5:
                             System.out.println("Exiting...");
                             return;
@@ -71,12 +70,13 @@ public class main {
         }
     }
 
-    static class Task implements Comparable<Task> {
+    static class Task extends Thread implements Comparable<Task> {
         String id;
         int burst;
         int remainingBurst;
         int priority;
         long insertionIndex;
+        private final Object lock = new Object();
 
         Task(String id, int burst, int priority, long insertionIndex) {
             this.id = id;
@@ -84,6 +84,70 @@ public class main {
             this.remainingBurst = burst;
             this.priority = priority;
             this.insertionIndex = insertionIndex;
+            this.setName(id);
+        }
+
+        @Override
+        public void run() {
+            while (remainingBurst > 0) {
+                // ── Pause: wait until the scheduler wakes us ──
+                synchronized (lock) {
+                    try {
+                        lock.wait(); // WAITING state — scheduler calls interrupt via giveQuantum
+                    } catch (InterruptedException e) {
+
+                    }
+                }
+                if (remainingBurst <= 0) break;
+                try {
+                    Thread.sleep(20); // simulate work unit
+                } catch (InterruptedException e) {
+
+                    Thread.currentThread().interrupt();
+                }
+            }
+            // Thread naturally reaches TERMINATED state here
+        }
+        //giveQuantum is the method that acts as the scheduler giving CPU time to a thread
+        public void giveQuantum(int quantum) {
+            Thread.State state = getState();
+
+            if (state == Thread.State.NEW) {
+                start(); // NEW → RUNNABLE, thread will immediately hit lock.wait()
+                try {
+                    Thread.sleep(5);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            // Deduct the quantum from remaining burst
+            int slice = Math.min(remainingBurst, quantum);
+            remainingBurst -= slice;
+
+            // Wake the thread so it can do its sleep(20) work simulation
+            synchronized (lock) {
+                lock.notify();
+            }
+
+            // Wait for the thread to finish its sleep(25) work unit
+            // (or terminate if it just finished)
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        /**
+         * Waits for this thread to fully reach TERMINATED state.
+         */
+        public void waitUntilDone() {
+            try {
+                join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
 
         @Override
@@ -92,6 +156,18 @@ public class main {
                 return Integer.compare(this.priority, other.priority);
             }
             return Long.compare(this.insertionIndex, other.insertionIndex);
+        }
+
+        /**
+         * Produce a fresh copy of this Task (new thread, same data).
+         */
+        public Task copy() {
+            return new Task(id, burst, priority, insertionIndex);
+        }
+
+        @Override
+        public String toString() {
+            return id + "(pri=" + priority + ", burst=" + burst + ")";
         }
     }
 
@@ -104,7 +180,7 @@ public class main {
             return tasks;
         }
         try (FileReader fr = new FileReader(filePath);
-                Scanner sc = new Scanner(fr)) {
+             Scanner sc = new Scanner(fr)) {
             while (sc.hasNextLine()) {
                 String line = sc.nextLine();
                 String[] parts = line.split(",");
@@ -124,101 +200,4 @@ public class main {
         }
         return tasks;
     }
-
-    public static List<Task> runSFC() {
-        JFileChooser fileChooser = new JFileChooser();
-        int result = fileChooser.showOpenDialog(null);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = fileChooser.getSelectedFile();
-            List<Task> tasks = readCSVTasks(selectedFile.getAbsolutePath());
-
-            System.out.println("Selected file: " + selectedFile.getAbsolutePath());
-            System.out.println("which scheduling algorithm would you like to run on the new file?");
-            int choice = new Scanner(System.in).nextInt();
-            if (tasks.isEmpty()) {
-                System.out.println("No tasks found in the selected file.");
-                return tasks;
-            }
-        } else {
-            System.out.println("No file selected.");
-        }
-        return new ArrayList<>();
-    }
-
-    public static void runMLFQ(List<Queue<Task>> queues, int quantum) {
-        int level = 0;
-        Queue<Task> young = queues.get(0);
-        Queue<Task> old = queues.get(1);
-
-
-        if (quantum <= 0) {
-            System.out.println("Time quantum must be greater than 0.");
-            return;
-        }
-
-
-        while (!young.isEmpty() || !old.isEmpty()) {
-            Queue<Task> current = (level == 0) ? young : old;
-            int timeSlice = quantum * (level + 1);
-
-            if (!current.isEmpty()) {
-                Task task = current.poll();
-                task.remainingBurst -= Math.min(task.remainingBurst, timeSlice);
-                System.out.println(task.id + " ran in level " + level + " for " + timeSlice + " units, remaining " + task.remainingBurst);
-
-                if (task.remainingBurst > 0) {
-                    level = (level + 1) % 2;
-                    if (level == 1) old.add(task);
-
-                }
-            } else {
-                level = (level + 1) % 2;
-            }
-        }
-    }
-
-    public static void runPriorityQueueTask(List<Task> tasks) {
-        PriorityQueue<Task> pq = new PriorityQueue<>(tasks);
-        if (pq.isEmpty()) {
-            System.out.println("No tasks to schedule.");
-            return;
-        }
-        System.out.println("Priority Queue execution order:");
-        while (!pq.isEmpty()) {
-            Task t = pq.poll();
-            System.out.println(t.id + " with priority " + t.priority + " and burst " + t.burst);
-        }
-    }
-
-    public static void runRoundRobin(List<Task> tasks, int quantum) {
-        if (quantum <= 0) {
-            System.out.println("Time quantum must be greater than 0.");
-            return;
-        }
-        if (tasks.isEmpty()) {
-            System.out.println("No tasks to schedule.");
-            return;
-        }
-        Queue<Task> queue = new ArrayDeque<>();
-        for (Task t : tasks) {
-            queue.add(new Task(t.id, t.burst, t.priority, t.insertionIndex));
-        }
-
-        System.out.println("Round Robin execution order:");
-        while (!queue.isEmpty()) {
-            Task current = queue.poll();
-            int slice = Math.min(current.remainingBurst, quantum);
-            current.remainingBurst -= slice;
-
-            System.out.println(current.id + " ran for " + slice + " units, remaining " + current.remainingBurst);
-
-            if (current.remainingBurst > 0) {
-                queue.add(current);
-            } else {
-                System.out.println(current.id + " completed.");
-
-            }
-        }
-    }
-
 }
