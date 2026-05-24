@@ -47,17 +47,14 @@ public class main {
                         case 3:
                             System.out.print("Enter quantum: ");
                             int quantumMLFQ = console.nextInt();
-                            List<Queue<Task>> queues = new ArrayList<>();
-                            Queue<Task> young = new ArrayDeque<>(tasks);
-                            Queue<Task> old = new ArrayDeque<>();
-                            queues.add(young);
-                            queues.add(old);
                             runMLFQ.run(tasks, quantumMLFQ);
+                            break;
                         case 4:
                             List<Task> newTasks = runSFC.run();
                             if (!newTasks.isEmpty()) {
                                 tasks = newTasks;
                             }
+                            /** SFC doesnt work**/
                         case 5:
                             System.out.println("Exiting...");
                             return;

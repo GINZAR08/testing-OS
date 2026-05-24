@@ -7,20 +7,20 @@ public class runMLFQ {
         if (quantum <= 0) { System.out.println("Quantum must be > 0."); return; }
         if (tasks.isEmpty()) { System.out.println("No tasks to schedule."); return; }
 
-        System.out.println("\n── MLFQ Scheduler (q0=" + quantum + "ms, q1=" + (quantum * 2) + "ms) ──");
+        System.out.println("\n── MLFQ Scheduler (quantum=" + quantum + "ms) ──");
 
-        Queue<main.Task> level0 = new ArrayDeque<>(); // young — short quantum
-        Queue<main.Task> level1 = new ArrayDeque<>(); // old   — longer quantum
+        Queue<main.Task> young = new ArrayDeque<>();
+        Queue<main.Task> old = new ArrayDeque<>();
 
-        for (main.Task t : tasks) level0.add(t.copy()); // fresh copies
+        for (main.Task t : tasks) young.add(t.copy()); // all tasks start in young
 
         int time = 0;
 
-        while (!level0.isEmpty() || !level1.isEmpty()) {
+        while (!young.isEmpty() || !old.isEmpty()) {
 
-            // ── Always service level 0 first ──
-            if (!level0.isEmpty()) {
-                main.Task task = level0.poll();
+            if (!young.isEmpty()) {
+                // ── Take from young, run it, send to old ──
+                main.Task task = young.poll();
 
                 if (task.getState() == Thread.State.TERMINATED) continue;
 
@@ -28,20 +28,48 @@ public class runMLFQ {
                 task.giveQuantum(quantum);
                 int ran = before - task.remainingBurst;
 
-                System.out.println("[t=" + time + "] L0: " + task.id
+                System.out.println("[t=" + time + "] YOUNG: " + task.id
                         + " ran for " + ran + "ms"
                         + " | remaining=" + task.remainingBurst + "ms"
                         + " | state=" + task.getState());
                 time += ran;
 
-                if (task.remainingBurst > 0) {
-                    // Didn't finish — demote to level 1
-                    System.out.println("  ↓ " + task.id + " demoted to Level 1");
-                    level1.add(task);
-                } else {
+                if (task.remainingBurst <= 0) {
                     task.waitUntilDone();
+                    System.out.println(  task.id + " TERMINATED");
+                } else {
+                    // Not done — move to old
+                    System.out.println( task.id + " moved to OLD");
+                    old.add(task);
+                }
+
+            } else {
+                // ── Young is empty, take from old, run it, send back to young ──
+                main.Task task = old.poll();
+
+                if (task.getState() == Thread.State.TERMINATED) continue;
+
+                int before = task.remainingBurst;
+                task.giveQuantum(quantum);
+                int ran = before - task.remainingBurst;
+
+                System.out.println("[t=" + time + "] OLD:   " + task.id
+                        + " ran for " + ran + "ms"
+                        + " | remaining=" + task.remainingBurst + "ms"
+                        + " | state=" + task.getState());
+                time += ran;
+
+                if (task.remainingBurst <= 0) {
+                    task.waitUntilDone();
+                    System.out.println( task.id + " TERMINATED");
+                } else {
+                    // Not done — move back to young
+                    System.out.println(  task.id + " moved back to YOUNG");
+                    young.add(task);
                 }
             }
         }
+
+        System.out.println("── MLFQ complete ──\n");
     }
 }
